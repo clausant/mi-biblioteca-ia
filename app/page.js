@@ -3,22 +3,42 @@ import Link from 'next/link';
 async function getBooks() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  if (!url || !key) return [];
 
-  const response = await fetch(
-    `${url}/rest/v1/books?select=slug,title,author,category,rating,summary,tags,published&published=eq.true&order=created_at.desc`,
-    {
-      headers: { apikey: key, Authorization: `Bearer ${key}` },
-      next: { revalidate: 60 }
+  if (!url || !key) {
+    return { books: [], error: 'Faltan variables NEXT_PUBLIC_SUPABASE_URL o NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY en Vercel.' };
+  }
+
+  try {
+    const response = await fetch(
+      `${url}/rest/v1/books?select=slug,title,author,category,rating,summary,tags,published&published=eq.true&order=created_at.desc`,
+      {
+        headers: {
+          apikey: key,
+          Authorization: `Bearer ${key}`,
+          Accept: 'application/json'
+        },
+        cache: 'no-store'
+      }
+    );
+
+    const body = await response.text();
+
+    if (!response.ok) {
+      return {
+        books: [],
+        error: `Supabase respondió ${response.status}: ${body.slice(0, 300)}`
+      };
     }
-  );
 
-  if (!response.ok) return [];
-  return response.json();
+    const books = body ? JSON.parse(body) : [];
+    return { books, error: null };
+  } catch (err) {
+    return { books: [], error: `Error consultando Supabase: ${err.message}` };
+  }
 }
 
 export default async function Home() {
-  const books = await getBooks();
+  const { books, error } = await getBooks();
   const categories = [...new Set(books.map((b) => b.category).filter(Boolean))];
 
   return (
@@ -41,7 +61,12 @@ export default async function Home() {
           <div><span className="eyebrow">CONOCIMIENTO</span><h2>Biblioteca</h2></div>
         </div>
 
-        {books.length === 0 ? (
+        {error ? (
+          <div className="errorBox">
+            <strong>Error de conexión con Supabase</strong>
+            <p>{error}</p>
+          </div>
+        ) : books.length === 0 ? (
           <p className="empty">No hay libros publicados todavía.</p>
         ) : (
           <div className="grid">
