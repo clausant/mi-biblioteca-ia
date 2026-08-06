@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import MermaidDiagram from '../../components/MermaidDiagram';
 
 async function getBook(slug) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -10,13 +11,25 @@ async function getBook(slug) {
     `${url}/rest/v1/books?select=*&slug=eq.${encodeURIComponent(slug)}&published=eq.true&limit=1`,
     {
       headers: { apikey: key, Authorization: `Bearer ${key}` },
-      next: { revalidate: 60 }
+      cache: 'no-store'
     }
   );
 
   if (!response.ok) return null;
   const rows = await response.json();
   return rows[0] || null;
+}
+
+function BulletSection({ title, items }) {
+  if (!items || items.length === 0) return null;
+  return (
+    <section className="reviewSection">
+      <h2>{title}</h2>
+      <ul className="detailList">
+        {items.map((item, index) => <li key={index}>{item}</li>)}
+      </ul>
+    </section>
+  );
 }
 
 export default async function BookPage({ params }) {
@@ -37,7 +50,7 @@ export default async function BookPage({ params }) {
           <div className="score">★ {book.rating ?? '—'}<small>/10</small></div>
         </div>
 
-        <section className="reviewSection">
+        <section className="reviewSection leadSection">
           <h2>Resumen</h2>
           <p>{book.summary}</p>
         </section>
@@ -51,10 +64,35 @@ export default async function BookPage({ params }) {
           </section>
         )}
 
-        <section className="reviewSection">
-          <h2>Reseña</h2>
+        {book.architecture_diagram && (
+          <section className="reviewSection diagramSection">
+            <div className="sectionIntro">
+              <span className="eyebrow">MAPA CONCEPTUAL</span>
+              <h2>Cómo organiza el libro un sistema de IA</h2>
+              <p>Una síntesis visual de la relación entre necesidad de negocio, arquitectura, ciclo de vida del modelo y operación.</p>
+            </div>
+            <MermaidDiagram chart={book.architecture_diagram} />
+          </section>
+        )}
+
+        <section className="reviewSection longReview">
+          <h2>Reseña en profundidad</h2>
           {(book.review || '').split('\n').filter(Boolean).map((paragraph, index) => <p key={index}>{paragraph}</p>)}
         </section>
+
+        <div className="reviewColumns">
+          <BulletSection title="Fortalezas" items={book.strengths} />
+          <BulletSection title="Limitaciones" items={book.weaknesses} />
+        </div>
+
+        <BulletSection title="Aplicaciones prácticas" items={book.practical_applications} />
+
+        {book.conclusion && (
+          <section className="reviewSection conclusionBox">
+            <span className="eyebrow">CONCLUSIÓN</span>
+            <p>{book.conclusion}</p>
+          </section>
+        )}
 
         <div className="tags detailTags">
           {(book.tags || []).map((tag) => <span key={tag}>{tag}</span>)}
